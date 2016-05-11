@@ -36,7 +36,6 @@ import pprint
 import socket
 import sys
 import time
-import types
 import traceback
 
 from distutils.version import StrictVersion
@@ -316,7 +315,7 @@ class Engine(object):
             self._loadEventIdData()
 
             self._mainLoop()
-        except KeyboardInterrupt, err:
+        except KeyboardInterrupt:
             self.log.warning('Keyboard interrupt. Cleaning up...')
         except Exception, err:
             msg = 'Crash!!!!! Unexpected error (%s) in main loop.\n\n%s'
@@ -867,8 +866,6 @@ class Callback(object):
         @param shotgun: The Shotgun instance that will be used to communicate
             with your Shotgun server.
         @type shotgun: L{sg.Shotgun}
-        @param logger: An object to log messages with.
-        @type logger: I{logging.Logger}
         @param matchEvents: The event filter to match events against before invoking callback.
         @type matchEvents: dict
         @param args: Any datastructure you would like to be passed to your
