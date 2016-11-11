@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # Init file for Shotgun event daemon
 #
@@ -143,6 +143,15 @@ class Config(ConfigParser.ConfigParser):
     def getEngineScriptKey(self):
         return self.get('shotgun', 'key')
 
+    def getEngineProxyServer(self):
+        try:
+            proxy_server = self.get('shotgun', 'proxy_server').strip()
+            if not proxy_server:
+                return None
+            return proxy_server
+        except ConfigParser.NoOptionError:
+            return None
+
     def getEventIdFile(self):
         return self.get('daemon', 'eventIdFile')
 
@@ -237,7 +246,8 @@ class Engine(object):
         self._sg = sg.Shotgun(
             self.config.getShotgunURL(),
             self.config.getEngineScriptName(),
-            self.config.getEngineScriptKey()
+            self.config.getEngineScriptKey(),
+            http_proxy=self.config.getEngineProxyServer()
         )
         self._max_conn_retries = self.config.getint('daemon', 'max_conn_retries')
         self._conn_retry_sleep = self.config.getint('daemon', 'conn_retry_sleep')
@@ -754,7 +764,8 @@ class Plugin(object):
         Register a callback in the plugin.
         """
         global sg
-        sgConnection = sg.Shotgun(self._engine.config.getShotgunURL(), sgScriptName, sgScriptKey)
+        sgConnection = sg.Shotgun(self._engine.config.getShotgunURL(), sgScriptName, sgScriptKey, 
+                                  http_proxy=self._engine.config.getEngineProxyServer())
         self._callbacks.append(Callback(callback, self, self._engine, sgConnection, matchEvents, args, stopOnError))
 
     def process(self, event):
