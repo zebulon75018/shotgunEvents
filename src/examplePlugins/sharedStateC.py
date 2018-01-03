@@ -38,8 +38,8 @@ def registerCallbacks(reg):
     Register all necessary or appropriate callbacks for this plugin.
     """
 
-    scriptName = os.environ["SGDAEMON_SHAREDSTATEA_NAME"]
-    scriptKey = os.environ["SGDAEMON_SHAREDSTATEA_KEY"]
+    scriptName = os.environ["SGDAEMON_SHAREDSTATEC_NAME"]
+    scriptKey = os.environ["SGDAEMON_SHAREDSTATEC_KEY"]
 
     # Prepare the shared state object
     _state = {
