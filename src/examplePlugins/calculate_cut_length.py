@@ -5,6 +5,8 @@
 # this software in either electronic or hard copy form.
 #
 
+# See docs folder for detailed usage info.
+
 import os
 import math
 import shotgun_api3
@@ -20,14 +22,17 @@ def registerCallbacks(reg):
     # Grab authentication env vars for this plugin. Install these into the env
     # if they don't already exist.
     server = os.environ["SG_SERVER"]
-    script_name = os.environ["SGDAEMON_UTFF_NAME"]
-    script_key = os.environ["SGDAEMON_UTFF_KEY"]
+    script_name = os.environ["SGDAEMON_CALCULATECUTLENGTH_NAME"]
+    script_key = os.environ["SGDAEMON_CALCULATECUTLENGTH_KEY"]
 
+    # User-defined plugin args, change at will.
     args = {
         "entity_type": "Shot",
-        "source_frames_field": "sg_cut_duration",
-        "target_tc_field": "sg_cut_length_tc",
-        "fps": 24.0
+        "cut_in_field": "sg_cut_in",
+        "cut_out_field": "sg_cut_out",
+        "cut_duration_field": "sg_cut_duration",
+        "cut_length_rt_field": "sg_cut_length_r_t",
+        "fps": 24.0,
     }
 
     # Grab an sg connection for the validator.
@@ -39,16 +44,21 @@ def registerCallbacks(reg):
         return
 
     event_filter = {
-        "Shotgun_%s_Change" % args["entity_type"]: [args["source_frames_field"]]
+        "Shotgun_%s_Change" % args["entity_type"]: [
+            args["cut_in_field"],
+            args["cut_out_field"],
+            args["cut_duration_field"],
+        ]
     }
 
     reg.registerCallback(
         script_name,
         script_key,
-        update_shot_cut_duration_timecode,
+        update_cut_duration_timecode,
         event_filter,
         args,
     )
+    reg.logger.debug("Registered callback.")
 
 
 def is_valid(sg, logger, args):
@@ -61,10 +71,14 @@ def is_valid(sg, logger, args):
     :returns: True if plugin is valid, None if not.
     """
 
+    logger.info("hey!")
+
     args_to_check = {
-        "source_frames_field": {"sg_type": "number", "type": "str"},
-        "target_tc_field": {"sg_type": "timecode", "type": "str"},
-        "fps": {"type": "float"}
+        "fps": {"type": ["float"]},
+        "cut_in_field": {"sg_type": ["number"], "type": ["str"]},
+        "cut_out_field": {"sg_type": ["number"], "type": ["str"]},
+        "cut_duration_field": {"sg_type": ["number"], "type": ["str"]},
+        "cut_length_rt_field": {"sg_type": ["timecode"], "type": ["str"]},
     }
 
     # Make sure we can read the entity_type's schema.
@@ -134,9 +148,22 @@ def is_valid(sg, logger, args):
     return True
 
 
-def update_shot_cut_duration_timecode(sg, logger, event, args):
+def update_cut_duration_timecode(sg, logger, event, args):
     """
-    Updates a timecode field based on a frames value field.
+    Desired logic:
+
+    Part 1 - Updates to Cut In and Cut Out
+
+    When the Cut In or Cut Out values are updated, calculate the following fields:
+`
+         Cut Length = Cut Out - Cut In + 1
+         Cut Length R/T = Cut Length in timecode
+
+    Part 2 - Updates to Cut Length
+
+    When the Cut Length value is updated by hand, calculate the following field:
+`
+         Cut Length R/T = Cut Length in timecode
 
     :param sg: Shotgun API handle.
     :param logger: Logger instance.
@@ -145,42 +172,73 @@ def update_shot_cut_duration_timecode(sg, logger, event, args):
     """
 
     # Return if we don't have all the field values we need.
-    if not event.get("meta", {}).get("entity_id"):
-        return
+    if (not event.get("attribute_name") or
+        not event.get("meta", {}).get("entity_id")):
+            return
 
     # Make some vars for convenience.
     entity_id = event["meta"]["entity_id"]
-    fps = float(args["fps"])
+    attribute_name = event["attribute_name"]
 
     # Re-query the entity to gather extra field values.
     entity = sg.find_one(
         args["entity_type"],
         [["id", "is", entity_id]],
-        [args["source_frames_field"]],
+        [args["cut_in_field"], args["cut_out_field"], args["cut_duration_field"]],
     )
 
-    # Return if we don't have an entity dict.
+    # Return if no entity was found.
     if not entity:
-        logger.info("No %s with id %s." % (args["entity_type"], entity_id))
+        logger.info(
+            "Couldn't retrieve %s with id %d" % (args["entity_type"], entity_id)
+        )
         return
 
-    # If we've got a frame value, update our entity's timecode field value. Note
-    # that we round up for the timecode conversion to int.
-    if entity[args["source_frames_field"]] is not None:
-        sg.update(
-            args["entity_type"],
-            entity["id"],
-            {args["target_tc_field"]: int(
-                math.ceil(entity[args["source_frames_field"]] / fps * 1000)
-            )},
-        )
-        logger.info("Updated %s %s timecode with %s" % (
+    # Init our entity_type update dict.
+    new_data = {}
+
+    # If the cut in or cut out values were changed...
+    if attribute_name in [args["cut_in_field"], args["cut_out_field"]]:
+
+        # ...return if either the cut in or cut out values are not set...
+        if not entity[args["cut_in_field"]] or not entity[args["cut_out_field"]]:
+            logger.debug("Either cut in or cut out value is missing, skipping.")
+            return
+
+        # ... or enter updated values into new_data for the cut_duration_field
+        # and cut_length_rt_field. Round up anything in cut_length_rt_field that
+        # isn't an int.
+        new_data[args["cut_duration_field"]] = \
+            entity[args["cut_out_field"]] - entity[args["cut_in_field"]] + 1
+        new_data[args["cut_length_rt_field"]] = int(math.ceil(
+            new_data[args["cut_duration_field"]] / args["fps"] * 1000
+        ))
+
+    # Otherwise...
+    else:
+
+        # ...return if the cut duration field is empty...
+        if not entity[args["cut_duration_field"]]:
+            logger.debug("No cut length value, skipping.")
+            return
+
+        # ...or enter an updated value into new_data for the cut_length_rt_field field.
+        new_data[args["cut_length_rt_field"]] = int(math.ceil(
+            entity[args["cut_duration_field"]] / args["fps"] * 1000
+        ))
+
+    # If we have something to do, do it!
+    if new_data:
+
+        sg.update(args["entity_type"], entity["id"], new_data)
+
+        logger.info("Updated %s (ID %s) with %s" % (
             args["entity_type"],
             str(entity["id"]),
-            {args["target_tc_field"]: int(
-                math.ceil(entity[args["source_frames_field"]] / fps * 1000)
-            )},
-        ))
+            str(new_data))
+        )
+
+    # Otherwise tell the logger to bugger off.
     else:
         logger.info("Did not update %s with ID %s, nothing to do." % (
             args["entity_type"], entity["id"])

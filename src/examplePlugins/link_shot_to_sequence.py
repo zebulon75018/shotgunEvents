@@ -5,6 +5,8 @@
 # this software in either electronic or hard copy form.
 #
 
+# See docs folder for detailed usage info.
+
 """
 Required fields
     Shot entity:
