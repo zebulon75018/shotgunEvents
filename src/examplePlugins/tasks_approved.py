@@ -26,11 +26,12 @@ def registerCallbacks(reg):
 
     args = {
         "task_status_field": "sg_status_list",
-        "task_status": "fin",
+        "task_status": ["fin"],
+        "upstream_tasks_field": "upstream_tasks",
         "downstream_tasks_field": "downstream_tasks",
-        "downstream_task_status_activate": "wtg",
+        "downstream_task_status_activate": ["wtg"],
         "downstream_task_status_active": "ip",
-        "downstream_task_status_recurse": "na",
+        "downstream_task_status_recurse": ["na"],
         "note_status_field": "sg_status_list",
         "close_notes": True,
         "closed_note_status": "clsd",
@@ -105,10 +106,10 @@ def tasks_approved(sg, logger, event, args):
         logger.debug("Could not find Task ID %s" % entity_id)
         return
 
-    # Return if our Task isn't set to the task_status.
-    elif task[args["task_status_field"]] != args["task_status"]:
+    # Return if our Task isn't set to a valid task_status.
+    elif task[args["task_status_field"]] not in args["task_status"]:
         logger.debug(
-            "Task with ID %s not set to %s, skipping." % (task["id"], args["task_status"])
+            "Task with ID %s not set to one of %s, skipping." % (task["id"], args["task_status"])
         )
         return
 
@@ -116,8 +117,7 @@ def tasks_approved(sg, logger, event, args):
     batch_updates = []
 
     # Get downstream tasks that need to be updated.
-    if args.get("downstream_task_status_activate") and args.get("downstream_task_status_active"):
-        build_updates_for_downstream_tasks(sg, task, batch_updates, args)
+    build_updates_for_downstream_tasks(sg, logger, task, batch_updates, args)
 
     # Find any Notes linked to the current Task and close them.
     if args.get("close_notes") and args.get("note_status_field") and args.get("closed_note_status"):
@@ -147,7 +147,7 @@ def tasks_approved(sg, logger, event, args):
         logger.info("Task with ID %s: nothing to do, skipping." % task["id"])
 
 
-def build_updates_for_downstream_tasks(sg, task, batch_updates, args):
+def build_updates_for_downstream_tasks(sg, logger, task, batch_updates, args):
     """
     Loop through our downstream tasks and append any necessary updates to the
     batch_updates list.
@@ -166,15 +166,39 @@ def build_updates_for_downstream_tasks(sg, task, batch_updates, args):
     # tasks values.
     downstream_tasks = sg.find(
         "Task",
-        [["id", "in", [t["id"] for t in task[args["downstream_tasks_field"]]]]],
-        [args["task_status_field"], args["downstream_tasks_field"]],
+        [
+            ["id", "in", [t["id"] for t in task[args["downstream_tasks_field"]]]]
+        ],
+        [
+            args["task_status_field"],
+            args["upstream_tasks_field"],
+            args["downstream_tasks_field"],
+        ],
     )
 
     # Loop through our downstream tasks and append any necessary Task status
     # updates to the batch_updates list.
     for downstream_task in downstream_tasks:
-        if downstream_task.get(args["task_status_field"]) == \
+
+        # Make sure all upstream Tasks are also set to a valid status.
+        upstream_check = True
+        if len(downstream_task[args["upstream_tasks_field"]]) > 1:
+            for upstream_task in downstream_task[args["upstream_tasks_field"]]:
+                upstream_task = sg.find_one(
+                    "Task",
+                    [["id", "is", upstream_task["id"]]],
+                    ["sg_status_list"],
+                )
+                if upstream_task["sg_status_list"] not in args["task_status"] \
+                and upstream_task["sg_status_list"] not in args["downstream_task_status_recurse"]:
+                    upstream_check = False
+                    break
+        if not upstream_check:
+            continue
+
+        if downstream_task.get(args["task_status_field"]) in \
         args["downstream_task_status_activate"]:
+
             batch_updates.append({
                 "request_type": "update",
                 "entity_type": "Task",
@@ -184,9 +208,9 @@ def build_updates_for_downstream_tasks(sg, task, batch_updates, args):
                 },
             })
         elif args.get("downstream_task_status_recurse") \
-        and downstream_task.get(args["task_status_field"]) == \
+        and downstream_task.get(args["task_status_field"]) in \
         args["downstream_task_status_recurse"]:
-            build_updates_for_downstream_tasks(sg, downstream_task, batch_updates, args)
+            build_updates_for_downstream_tasks(sg, logger, downstream_task, batch_updates, args)
 
 
 def all_note_tasks_approved(sg, note, args):
