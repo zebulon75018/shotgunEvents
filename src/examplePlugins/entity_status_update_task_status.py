@@ -20,10 +20,10 @@ pitfalls. Use/modify at your own risk.
 
 When an entity's args["entity_status_field"] field changes to
 args["target_status"], its description field is updated (if it's empty) with the
-name of the user who putit On Hold, and its child Tasks'
-args["entity_status_field"] are set to args["target_status"], unless they're
-already set to a status in args["skip_statuses"]. If you'd like to change this
-plugin's behavior, modify the "args" in the registerCallbacks function.
+name of the user who put it On Hold, and its child Tasks args["entity_status_field"]
+fields are set to args["target_status"], unless they're already set to a status
+in args["skip_statuses"]. If you'd like to change this plugin's behavior, modify
+the "args" in the registerCallbacks function.
 """
 
 
@@ -74,8 +74,7 @@ def registerCallbacks(reg):
         eventFilter,
         args,
     )
-
-    reg.logger.debug("Registering callback.")
+    reg.logger.debug("Registered callback.")
 
 
 def is_valid(sg, logger, args):
