@@ -1,3 +1,33 @@
+
+# Add a  sgeventlogcli.py to list all plugins and the matches:
+
+```
+
+python sgeventlogcli.py
+calc_field:
+        PATH:           ...\plugins\calc_field.py
+        MATCHEVENT:     {'Shotgun_Project_Change': ['id', 1]}
+        ARGS:           {'operator': '+', 'field_to_update': 'sg_description', 'field_a': 'id', 'field_b': 1, 'entity_type': 'Project'}
+        Stop On Error:  True
+entity_status_update_task_status:
+        PATH:           ...\plugins\entity_status_update_task_status.py
+        MATCHEVENT:     {'Shotgun_entity_type_Change': 'entity_status_field'}
+        ARGS:           {'target_status': 'hld', 'skip_statuses': ['fin', 'na', 'hld'], 'entity_status_field': 'sg_status_list', 'entity_type': 'Asset'}
+        Stop On Error:  True
+init_entity:
+        PATH:           ...\src\plugins\init_entity.py
+        MATCHEVENT:     {'Shotgun_Asset_New': None}
+        ARGS:           {'initial_data': {'description': 'Brand new Asset.'}, 'force': False, 'filters': [], 'entity_type': 'Asset'}
+        Stop On Error:  True
+version_status_update_task_status:
+        PATH:           ...\plugins\version_status_update_task_status.py
+        MATCHEVENT:     {'Shotgun_Version_Change': ['sg_status_list']}
+        ARGS:           {'date_approved_timezone': 'US/Pacific', 'date_approved_field': 'client_approved_at', 'approved_status_code': 'apr'}
+        Stop On Error:  True
+```
+
+# Add a SQliteLog 
+
 # Shotgun Event Framework
 
 This software was originaly developed by [Patrick
