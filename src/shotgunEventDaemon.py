@@ -31,6 +31,7 @@ import datetime
 import imp
 import logging
 import logging.handlers
+import SQLiteHandler
 import os
 import pprint
 import socket
@@ -85,6 +86,10 @@ def _setFilePathOnLogger(logger, path):
     handler = logging.handlers.TimedRotatingFileHandler(path, 'midnight', backupCount=10)
     handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
     logger.addHandler(handler)
+    
+    sh = SQLiteHandler.SQLiteHandler(db="test.db")
+    sh.setLevel(logging.INFO)
+    logger.addHandler(sh)
 
 
 def _removeHandlersFromLogger(logger, handlerTypes=None):
