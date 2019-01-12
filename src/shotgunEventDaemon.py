@@ -852,7 +852,11 @@ class Registrar(object):
         """
         self._plugin = plugin
         self._allowed = ['logger', 'setEmails', 'registerCallback']
-
+ 
+    def getConfig(self):
+        # to plugin access conf
+        return self._plugin._engine.config
+    
     def getLogger(self):
         """
         Get the logger for this plugin.
