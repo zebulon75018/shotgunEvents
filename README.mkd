@@ -26,7 +26,7 @@ version_status_update_task_status:
         Stop On Error:  True
 ```
 
-# Add a SQliteLog 
+# Add a SQliteLogger 
 
 # Shotgun Event Framework
 
