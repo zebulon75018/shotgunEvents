@@ -10,17 +10,43 @@ class EngineCli(sgED.Engine):
         logging.getLogger().addHandler(handler)
         self.setLogger(logging.getLogger())
 
-engine = EngineCli('shotgunEventDaemon.conf') 
-#print("%s " % engine.config.getPluginPaths())
+@click.group()
+def cli1():
+    pass
 
-plugcollections = [sgED.PluginCollection(engine, s) for s in engine.config.getPluginPaths()]
-for plugc in plugcollections:
-    plugc.load()
-    for plug in  plugc:
-        
-        print("%s:" % plug.getName())
-        print("\tPATH:\t\t%s" % plug._path)
-        for call in plug._callbacks:
-            print("\tMATCHEVENT:\t%s" % call._matchEvents)
-            print("\tARGS:\t\t%s" % call._args)
-            print("\tStop On Error:\t%s"  % call._stopOnError)
+@click.group()
+def cli2():
+    pass
+
+@cli1.command()
+def listplugin():
+    engine = EngineCli('shotgunEventDaemon.conf') 
+    #print("%s " % engine.config.getPluginPaths())
+
+    plugcollections = [sgED.PluginCollection(engine, s) for s in engine.config.getPluginPaths()]
+    for plugc in plugcollections:
+        plugc.load() 
+        for plug in  plugc:
+            
+            print("%s:" % plug.getName())
+            print("\tPATH:\t\t%s" % plug._path)
+            for call in plug._callbacks:
+                print("\tMATCHEVENT:\t%s" % call._matchEvents)
+                print("\tARGS:\t\t%s" % call._args)
+                print("\tStop On Error:\t%s"  % call._stopOnError)
+
+@cli2.command()
+def info():
+    engine = EngineCli('shotgunEventDaemon.conf') 
+    conf = engine.config
+    print("shotgun url : %s " % conf.getShotgunURL())
+    print("plugin path : %s " % conf.getPluginPaths())
+    
+    #conf.set("shotgun","titi","toto")
+    #with open('shotgunEventDaemon.cfg', 'w') as configfile:
+    #    conf.write(configfile)
+
+cli = click.CommandCollection(sources=[cli1,cli2])
+
+if __name__ == '__main__':
+    cli()
