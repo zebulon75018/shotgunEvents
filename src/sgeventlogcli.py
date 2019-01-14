@@ -2,12 +2,16 @@ import click
 import logging
 import shotgunEventDaemon as sgED
 
-engine = sgED.Engine('shotgunEventDaemon.conf') 
+class EngineCli(sgED.Engine):
+    def __init__(self, configPath):
+        super(EngineCli,self).__init__(configPath)
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+        logging.getLogger().addHandler(handler)
+        self.setLogger(logging.getLogger())
+
+engine = EngineCli('shotgunEventDaemon.conf') 
 #print("%s " % engine.config.getPluginPaths())
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
-logging.getLogger().addHandler(handler)
-engine.setLogger(logging.getLogger())
 
 plugcollections = [sgED.PluginCollection(engine, s) for s in engine.config.getPluginPaths()]
 for plugc in plugcollections:
