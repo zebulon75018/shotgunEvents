@@ -3,7 +3,22 @@
 
 ```
 
-python sgeventlogcli.py
+python sgeventlogcli.py --help
+Usage: sgeventlogcli.py [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  info
+  listplugin
+  
+ python sgeventlogcli.py info
+ shotgun url : https://xxx.shotgunstudio.com/
+ plugin path : ['C:\\XXX\\plugins']
+  
+
+python sgeventlogcli.py listplugin
 calc_field:
         PATH:           ...\plugins\calc_field.py
         MATCHEVENT:     {'Shotgun_Project_Change': ['id', 1]}
