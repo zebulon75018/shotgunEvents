@@ -18,16 +18,25 @@ def cli1():
 def cli2():
     pass
 
-@cli1.command()
-def listplugin():
-    engine = EngineCli('shotgunEventDaemon.conf') 
+@click.group()
+def cli3():
+    pass
+
+@click.group()
+def cli4():
+    pass
+
+
+@cli1.command(help=" option --conf filename ")
+@click.option('--conf',default='shotgunEventDaemon.conf', help='config file.')
+def listplugin(conf):
+    engine = EngineCli(conf) 
     #print("%s " % engine.config.getPluginPaths())
 
     plugcollections = [sgED.PluginCollection(engine, s) for s in engine.config.getPluginPaths()]
     for plugc in plugcollections:
         plugc.load() 
-        for plug in  plugc:
-            
+        for plug in  plugc:            
             print("%s:" % plug.getName())
             print("\tPATH:\t\t%s" % plug._path)
             for call in plug._callbacks:
@@ -35,18 +44,34 @@ def listplugin():
                 print("\tARGS:\t\t%s" % call._args)
                 print("\tStop On Error:\t%s"  % call._stopOnError)
 
-@cli2.command()
-def info():
-    engine = EngineCli('shotgunEventDaemon.conf') 
+
+@cli2.command(help=" option --conf filename ")
+@click.option('--conf',default='shotgunEventDaemon.conf', help='config file.')
+def info(conf):
+    engine = EngineCli(conf) 
     conf = engine.config
     print("shotgun url : %s " % conf.getShotgunURL())
     print("plugin path : %s " % conf.getPluginPaths())
     
     #conf.set("shotgun","titi","toto")
-    #with open('shotgunEventDaemon.cfg', 'w') as configfile:
+    #with open(conf, 'w') as configfile:
     #    conf.write(configfile)
 
-cli = click.CommandCollection(sources=[cli1,cli2])
+@cli3.command(help=" option --id eventlogid --name nameplugin")
+@click.option('--id', help='id.')
+@click.option('--name',default=None,help='id.')
+def process(id,name):
+    pass
+
+@cli4.command(help=" option --id eventlogid --name nameplugin")
+@click.option('--id', help='id.')
+@click.option('--name', help='name.')
+def generate(id,name):
+    pass
+
+
+
+cli = click.CommandCollection(sources=[cli1,cli2,cli3,cli4])
 
 if __name__ == '__main__':
     cli()
