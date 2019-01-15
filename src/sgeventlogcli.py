@@ -60,8 +60,29 @@ def info(conf):
 @cli3.command(help=" option --id eventlogid --name nameplugin")
 @click.option('--id', help='id.')
 @click.option('--name',default=None,help='id.')
-def process(id,name):
-    pass
+def process(id,name):   
+   engine = EngineCli(conf)
+
+   # Get The EventLogEntry ID
+   global sg
+   sgConnection = sg.Shotgun(engine.config.getShotgunURL(),
+                             engine.config.getEngineScriptName(),
+                             engine.config.getEngineScriptKey(),
+                         http_proxy=engine.config.getEngineProxyServer())
+  
+   event = sgConnection.find_one("EventLogEntry", [["id", "is", int(id)]], fields=[
+                                  'id', 'event_type', 'attribute_name', 'meta', 'entity', 'user', 'project', 'session_uuid', 'created_at'])
+  
+   # Initialise the plugin.
+   plugcollections = [sgED.PluginCollection(
+       engine, s) for s in engine.config.getPluginPaths()]
+
+   for plugc in plugcollections:
+       plugc.load()
+  
+   for plugc in plugcollections:
+       plugc.process(event)
+
 
 @cli4.command(help=" option --id eventlogid --name nameplugin")
 @click.option('--id', help='id.')
