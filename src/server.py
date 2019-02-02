@@ -1,11 +1,13 @@
 from flask import Flask, render_template
 from flask import jsonify
 from threading import Thread
+import threading
+
 import time
 import datetime
 import shotgunEventDaemon as sgED
 import logging
-
+import Queue
 import json
 
 # App instance
@@ -18,6 +20,7 @@ running = True
 app.debug = True
 plugcollections = []
 
+counter = 0
 class EngineCli(sgED.Engine):
     def __init__(self, configPath):
         super(EngineCli,self).__init__(configPath)
@@ -39,45 +42,63 @@ sgConnection = sg.Shotgun(engine.config.getShotgunURL(),
 event = sgConnection.find_one("EventLogEntry", [["id", "is", int(id)]], fields=[
                                 'id', 'event_type', 'attribute_name', 'meta', 'entity', 'user', 'project', 'session_uuid', 'created_at'])
 """
-event = {}
+event = {'id':7806,'event_type':'Shotgun_Entity_Change','attribute_name':'sg_status_list'}
 
 # Initialise the plugin.
+
 plugcollections = [sgED.PluginCollection(
     engine, s) for s in engine.config.getPluginPaths()]
 
 for plugc in plugcollections:
     plugc.load()
 
+q = Queue.LifoQueue()
+
+class MyThread(Thread):
+    def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
+        super(MyThread, self).__init__(group, target, name, args, kwargs)
+        self.counter = 0
+        print("Create Thread")
+
 
 def worker_task():
     global running
+    global thread
+    global event
+    global plugcollections
     
     print("Thread started")
     while running:
         """ Put blocking code that might take longer to execute here """
-        time.sleep(5)
-        try:
-            for plugc in plugcollections:
-                plugc.process(event)
-        except Exception as e:
-            print("Exception %s" % e)
+        time.sleep(1)
+        #try:
+        """
+        for plugc in plugcollections:
+            plugc.process(event)
+        """
+        thread.counter = thread.counter + 1
+
+        print(event)     
+        for plugc in plugcollections:
+            print(plugc)
+            plugc.process(event)
+
+        q.put(thread.counter)
+        #t = threading.currentThread()
+        #print(thread.counter)
+        #print(t.counter)
+            
+        #except Exception as e:
+        #    print("Exception %s" % e)
+
         print("Thread...")
     print("Thread stopped")
 
-# Simple JSON file parser
-def get_json(path):
-    file = open(path)
-    data = json.load(file)
-    file.close()
-    return data
-
 @app.route("/")
 def index():
-    data = {}
-    return jsonify(data)
-    #return render('simple.html', )
+    return render_template('simple.html',name=q.get())
 
 if __name__ == "__main__":
-    thread = Thread(target = worker_task)
+    thread = MyThread(target = worker_task)
     thread.start()
     app.run()
