@@ -38,9 +38,11 @@ import socket
 import sys
 import time
 import traceback
-
 import threading
-from SimpleWebSocketServer import WebSocket, SimpleWebSocketServer, SimpleSSLWebSocketServer
+
+import Queue    
+
+from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 
 from distutils.version import StrictVersion
 
@@ -73,6 +75,7 @@ Line: %(lineno)d
 
 %(message)s"""
 
+my_queue = Queue.Queue()
 
 def _setFilePathOnLogger(logger, path):
     # Remove any previous handler.
@@ -227,25 +230,32 @@ class Config(ConfigParser.ConfigParser):
         return path
 
 
+class S(BaseHTTPRequestHandler):
+    def _set_headers(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
 
-class SimpleEcho(WebSocket):
+    def do_GET(self):
+        global my_queue
+        self._set_headers()
+        self.wfile.write("<html><body><h1>hi! %d </h1></body></html>" % my_queue.qsize())
 
-   def handleMessage(self):
-      self.sendMessage(self.data)
-
-   def handleConnected(self):
-      pass
-
-   def handleClose(self):
-      pass
+    def do_HEAD(self):
+        self._set_headers()
+        
+    def do_POST(self):
+        # Doesn't do anything with posted data
+        self._set_headers()
+        self.wfile.write("<html><body><h1>POST!</h1></body></html>")
+        
 
 def worker():
-    """thread worker function"""
-    print 'Worker'
-    cls = SimpleEcho
-    server = SimpleWebSocketServer("0.0.0.0", 5000, cls)
-    print("Server Start ")
-    server.serveforever()
+    server_address = ('localhost', 5000)
+
+    httpd = HTTPServer(server_address, S)
+    print 'Starting httpd...'
+    httpd.serve_forever()
     return
 
 class Engine(object):
@@ -461,10 +471,8 @@ class Engine(object):
             except Exception, err:
                 msg = "Unknown error: %s" % str(err)
                 conn_attempts = self._checkConnectionAttempts(conn_attempts, msg)
-            else:
-                lastEventId = result['id']
-                self.log.info('Last event id (%d) from the Shotgun database.', lastEventId)
-
+                #CV ADD WARNING
+                lastEventId = -1
         return lastEventId
 
     def _mainLoop(self):
@@ -489,9 +497,13 @@ class Engine(object):
           execution), skip it.
         - Each time through the loop, if the pidFile is gone, stop.
         """
+        global my_queue
         self.log.debug('Starting the event processing loop.')
         while self._continue:
             # Process events
+
+            print("My Queue put ")
+            my_queue.put(1)
             events = self._getNewEvents()
             for event in events:
                 for collection in self._pluginCollections:
@@ -544,6 +556,8 @@ class Engine(object):
                 except Exception, err:
                     msg = "Unknown error: %s" % str(err)
                     conn_attempts = self._checkConnectionAttempts(conn_attempts, msg)
+                    #CV ADD WARNING
+                    break
 
         return []
 
@@ -717,6 +731,8 @@ class Plugin(object):
         else:
             nextId = None
 
+        print("Next ID")
+        my_queue.put(nextId)
         now = datetime.datetime.now()
         for k in self._backlog.keys():
             v = self._backlog[k]
