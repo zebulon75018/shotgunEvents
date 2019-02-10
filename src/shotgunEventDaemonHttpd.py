@@ -239,7 +239,12 @@ class S(BaseHTTPRequestHandler):
     def do_GET(self):
         global my_queue
         self._set_headers()
-        self.wfile.write("<html><body><h1>hi! %d </h1></body></html>" % my_queue.qsize())
+        lstplug = my_queue.get()
+        self.wfile.write("<html><body><h1>hi! </h1><ol>")
+        for plugc in lstplug:
+            for plug in plugc:
+                self.wfile.write("<li> %s " % plug.getName())
+        self.wfile.write("</ol> </body></html>")
 
     def do_HEAD(self):
         self._set_headers()
@@ -502,14 +507,13 @@ class Engine(object):
         while self._continue:
             # Process events
 
-            print("My Queue put ")
-            my_queue.put(1)
+            
             events = self._getNewEvents()
             for event in events:
                 for collection in self._pluginCollections:
                     collection.process(event)
                 self._saveEventIdData()
-
+            my_queue.put(self._pluginCollections)
             # if we're lagging behind Shotgun, we received a full batch of events
             # skip the sleep() call in this case
             if len(events) < self.config.getMaxEventBatchSize():
@@ -731,8 +735,7 @@ class Plugin(object):
         else:
             nextId = None
 
-        print("Next ID")
-        my_queue.put(nextId)
+       
         now = datetime.datetime.now()
         for k in self._backlog.keys():
             v = self._backlog[k]
