@@ -38,6 +38,11 @@ import socket
 import sys
 import time
 import traceback
+import threading
+
+import Queue    
+
+from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 
 from distutils.version import StrictVersion
 
@@ -45,13 +50,6 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
-
-if sys.platform == 'win32':
-    import win32serviceutil
-    import win32service
-    import win32event
-    import servicemanager
-
 import daemonizer
 import shotgun_api3 as sg
 
@@ -77,6 +75,7 @@ Line: %(lineno)d
 
 %(message)s"""
 
+my_queue = Queue.Queue()
 
 def _setFilePathOnLogger(logger, path):
     # Remove any previous handler.
@@ -86,7 +85,7 @@ def _setFilePathOnLogger(logger, path):
     handler = logging.handlers.TimedRotatingFileHandler(path, 'midnight', backupCount=10)
     handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
     logger.addHandler(handler)
-    
+
     sh = SQLiteHandler.SQLiteHandler(db="test.db")
     sh.setLevel(logging.INFO)
     logger.addHandler(sh)
@@ -231,6 +230,39 @@ class Config(ConfigParser.ConfigParser):
         return path
 
 
+class S(BaseHTTPRequestHandler):
+    def _set_headers(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+
+    def do_GET(self):
+        global my_queue
+        self._set_headers()
+        lstplug = my_queue.get()
+        self.wfile.write("<html><body><h1>hi! </h1><ol>")
+        for plugc in lstplug:
+            for plug in plugc:
+                self.wfile.write("<li> %s " % plug.getName())
+        self.wfile.write("</ol> </body></html>")
+
+    def do_HEAD(self):
+        self._set_headers()
+        
+    def do_POST(self):
+        # Doesn't do anything with posted data
+        self._set_headers()
+        self.wfile.write("<html><body><h1>POST!</h1></body></html>")
+        
+
+def worker():
+    server_address = ('localhost', 5000)
+
+    httpd = HTTPServer(server_address, S)
+    print 'Starting httpd...'
+    httpd.serve_forever()
+    return
+
 class Engine(object):
     """
     The engine holds the main loop of event processing.
@@ -250,9 +282,8 @@ class Engine(object):
         self._sg = sg.Shotgun(
             self.config.getShotgunURL(),
             self.config.getEngineScriptName(),
-            self.config.getEngineScriptKey(),
-            http_proxy=self.config.getEngineProxyServer()
-        )
+            self.config.getEngineScriptKey()        
+            )
         self._max_conn_retries = self.config.getint('daemon', 'max_conn_retries')
         self._conn_retry_sleep = self.config.getint('daemon', 'conn_retry_sleep')
         self._fetch_interval = self.config.getint('daemon', 'fetch_interval')
@@ -277,8 +308,12 @@ class Engine(object):
             self.setEmailsOnLogger(self.log, True)
 
         self.log.setLevel(self.config.getLogLevel())
-
+        self.t = threading.Thread(target=worker)
+        self.t.start()
         super(Engine, self).__init__()
+
+    def setLogger(self, logger):
+        self.log = logger
 
     def setEmailsOnLogger(self, logger, emails):
         # Configure the logger for email output
@@ -306,9 +341,11 @@ class Engine(object):
             msg = 'Argument emails should be True to use the default addresses, False to not send any emails or a list of recipient addresses. Got %s.'
             raise ValueError(msg % type(emails))
 
+        """
         _addMailHandlerToLogger(
             logger, (smtpServer, smtpPort), fromAddr, toAddrs, emailSubject, username, password, secure
         )
+        """
 
     def start(self):
         """
@@ -333,8 +370,10 @@ class Engine(object):
         except KeyboardInterrupt:
             self.log.warning('Keyboard interrupt. Cleaning up...')
         except Exception, err:
-            msg = 'Crash!!!!! Unexpected error (%s) in main loop.\n\n%s'
-            self.log.critical(msg, type(err), traceback.format_exc(err))
+            pass
+            #msg = 'Crash!!!!! Unexpected error (%s) in main loop.\n\n'
+            #self.log.critical(sg, str(type(err)).replace("'",""))
+            #self.log.critical(msg, type(err), traceback.format_exc(err))
 
     def _loadEventIdData(self):
         """
@@ -430,6 +469,8 @@ class Engine(object):
             except Exception, err:
                 msg = "Unknown error: %s" % str(err)
                 conn_attempts = self._checkConnectionAttempts(conn_attempts, msg)
+                #CV ADD WARNING
+                lastEventId = -1
             else:
                 lastEventId = result['id']
                 self.log.info('Last event id (%d) from the Shotgun database.', lastEventId)
@@ -458,15 +499,18 @@ class Engine(object):
           execution), skip it.
         - Each time through the loop, if the pidFile is gone, stop.
         """
+        global my_queue
         self.log.debug('Starting the event processing loop.')
         while self._continue:
             # Process events
+
+            
             events = self._getNewEvents()
             for event in events:
                 for collection in self._pluginCollections:
                     collection.process(event)
                 self._saveEventIdData()
-
+            my_queue.put(self._pluginCollections)
             # if we're lagging behind Shotgun, we received a full batch of events
             # skip the sleep() call in this case
             if len(events) < self.config.getMaxEventBatchSize():
@@ -513,6 +557,8 @@ class Engine(object):
                 except Exception, err:
                     msg = "Unknown error: %s" % str(err)
                     conn_attempts = self._checkConnectionAttempts(conn_attempts, msg)
+                    #CV ADD WARNING
+                    break
 
         return []
 
@@ -680,11 +726,13 @@ class Plugin(object):
         return (self._lastEventId, self._backlog)
 
     def getNextUnprocessedEventId(self):
+        return self._lastEventId
         if self._lastEventId:
             nextId = self._lastEventId + 1
         else:
             nextId = None
 
+       
         now = datetime.datetime.now()
         for k in self._backlog.keys():
             v = self._backlog[k]
@@ -757,7 +805,8 @@ class Plugin(object):
         if callable(regFunc):
             try:
                 regFunc(Registrar(self))
-            except:
+            except Exception as e:
+                print(e.message)
                 self._engine.log.critical('Error running register callback function from plugin at %s.\n\n%s', self._path, traceback.format_exc())
                 self._active = False
         else:
@@ -768,12 +817,13 @@ class Plugin(object):
         """
         Register a callback in the plugin.
         """
-        global sg
-        sgConnection = sg.Shotgun(self._engine.config.getShotgunURL(), sgScriptName, sgScriptKey, 
-                                  http_proxy=self._engine.config.getEngineProxyServer())
-        self._callbacks.append(Callback(callback, self, self._engine, sgConnection, matchEvents, args, stopOnError))
+        #global sg
+        #sgConnection = sg.Shotgun(self._engine.config.getShotgunURL(), sgScriptName, sgScriptKey, 
+        #                          http_proxy=self._engine.config.getEngineProxyServer())
+        self._callbacks.append(Callback(callback, self, self._engine, None, matchEvents, args, stopOnError))
 
     def process(self, event):
+        """
         if event['id'] in self._backlog:
             if self._process(event):
                 self.logger.info('Processed id %d from backlog.' % event['id'])
@@ -783,8 +833,9 @@ class Plugin(object):
             msg = 'Event %d is too old. Last event processed was (%d).'
             self.logger.debug(msg, event['id'], self._lastEventId)
         else:
-            if self._process(event):
-                self._updateLastEventId(event)
+        """
+        if self._process(event):
+            self._updateLastEventId(event)
 
         return self._active
 
@@ -852,11 +903,10 @@ class Registrar(object):
         """
         self._plugin = plugin
         self._allowed = ['logger', 'setEmails', 'registerCallback']
- 
-    def getConfig(self):
-        # to plugin access conf
-        return self._plugin._engine.config
     
+    def getConfig(self):
+        return self._plugin._engine.config
+
     def getLogger(self):
         """
         Get the logger for this plugin.
@@ -875,7 +925,7 @@ class Registrar(object):
 
 class Callback(object):
     """
-    A part of a plugin that can be called to process a Shotgun event.
+    A part of a plugin that can be called to process a Shotgun event.   
     """
 
     def __init__(self, callback, plugin, engine, shotgun, matchEvents=None, args=None, stopOnError=True):
@@ -952,12 +1002,13 @@ class Callback(object):
         @type event: I{dict}
         """
         # set session_uuid for UI updates
-        if self._engine._use_session_uuid:
-            self._shotgun.set_session_uuid(event['session_uuid'])
+        #if self._engine._use_session_uuid:
+        #    self._shotgun.set_session_uuid(event['session_uuid'])
 
         try:
-            self._callback(self._shotgun, self._logger, event, self._args)
-        except:
+            self._callback(self._shotgun, self._logger, event, self._args, "tptp")
+        except Exception as e:
+            print(e)
             # Get the local variables of the frame of our plugin
             tb = sys.exc_info()[2]
             stack = []
@@ -1089,44 +1140,6 @@ class ConfigError(EventDaemonError):
     pass
 
 
-if sys.platform == 'win32':
-    class WindowsService(win32serviceutil.ServiceFramework):
-        """
-        Windows service wrapper
-        """
-        _svc_name_ = "ShotgunEventDaemon"
-        _svc_display_name_ = "Shotgun Event Handler"
-
-        def __init__(self, args):
-            win32serviceutil.ServiceFramework.__init__(self, args)
-            self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-            self._engine = Engine(_getConfigPath())
-
-        def SvcStop(self):
-            """
-            Stop the Windows service.
-            """
-            self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-            win32event.SetEvent(self.hWaitStop)
-            self._engine.stop()
-
-        def SvcDoRun(self):
-            """
-            Start the Windows service.
-            """
-            servicemanager.LogMsg(
-                servicemanager.EVENTLOG_INFORMATION_TYPE,
-                servicemanager.PYS_SERVICE_STARTED,
-                (self._svc_name_, '')
-            )
-            self.main()
-
-        def main(self):
-            """
-            Primary Windows entry point
-            """
-            self._engine.start()
-
 
 class LinuxDaemon(daemonizer.Daemon):
     """
@@ -1208,4 +1221,7 @@ def _getConfigPath():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    engine = Engine(_getConfigPath())
+    engine.start()
+    engine._mainLoop()
+    #sys.exit(main())

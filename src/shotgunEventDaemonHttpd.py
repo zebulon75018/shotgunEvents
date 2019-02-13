@@ -279,17 +279,10 @@ class Engine(object):
 
         # Get config values
         self._pluginCollections = [PluginCollection(self, s) for s in self.config.getPluginPaths()]
-        """
         self._sg = sg.Shotgun(
             self.config.getShotgunURL(),
             self.config.getEngineScriptName(),
             self.config.getEngineScriptKey()        
-            )
-        """
-        self._sg = sg.Shotgun(
-            "https://testeventlog.shotgunstudio.com/",
-            "testscript",
-            "zghphgPpxshwqgv4hrcipaj"        
             )
         self._max_conn_retries = self.config.getint('daemon', 'max_conn_retries')
         self._conn_retry_sleep = self.config.getint('daemon', 'conn_retry_sleep')
@@ -478,6 +471,10 @@ class Engine(object):
                 conn_attempts = self._checkConnectionAttempts(conn_attempts, msg)
                 #CV ADD WARNING
                 lastEventId = -1
+            else:
+                lastEventId = result['id']
+                self.log.info('Last event id (%d) from the Shotgun database.', lastEventId)
+
         return lastEventId
 
     def _mainLoop(self):
