@@ -60,11 +60,12 @@ def info(conf):
 @cli3.command(help=" option --id eventlogid --name nameplugin")
 @click.option('--id', help='id.')
 @click.option('--name',default=None,help='id.')
-def process(id,name):   
-   engine = EngineCli(conf)
+@click.option('--conf',default='shotgunEventDaemon.conf', help='config file.')
+def process(id,name,conf):   
+   engine = EngineCli("shotgunEventDaemon.conf")
 
    # Get The EventLogEntry ID
-   global sg
+   #global sg
    sgConnection = sg.Shotgun(engine.config.getShotgunURL(),
                              engine.config.getEngineScriptName(),
                              engine.config.getEngineScriptKey(),
