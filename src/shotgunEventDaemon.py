@@ -137,6 +137,12 @@ class Config(ConfigParser.ConfigParser):
         ConfigParser.ConfigParser.__init__(self)
         self.read(path)
 
+    def getAddPath(self):
+        if self.has_option('syspath', 'paths'):
+            return self.get('syspath', 'paths')
+        else:
+            return None
+
     def getShotgunURL(self):
         return self.get('shotgun', 'server')
 
@@ -277,6 +283,7 @@ class Engine(object):
         # Read/parse the config
         self.config = Config(configPath)
 
+        self.addSysPath()
         # Get config values
         self._pluginCollections = [PluginCollection(self, s) for s in self.config.getPluginPaths()]
         self._sg = sg.Shotgun(
@@ -311,6 +318,14 @@ class Engine(object):
         self.t = threading.Thread(target=worker)
         self.t.start()
         super(Engine, self).__init__()
+    
+    def addSysPath(self):
+        """
+          Add to sys path all path configure in the conf file.  
+        """
+        if self.config.getAddPath() is not None:
+            for path in self.config.getAddPath().split(";"):
+                sys.path.append(path)
 
     def setLogger(self, logger):
         self.log = logger
