@@ -2,7 +2,9 @@
 add to conf :
 
 [syspath]
+
 paths:C:/STUFF;C:
+
 Add to sys path.
 
 # Add a  sgeventlogcli.py to list all plugins and the matches:
