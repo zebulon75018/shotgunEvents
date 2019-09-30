@@ -1,6 +1,9 @@
 import click
 import logging
 import shotgunEventDaemon as sgED
+import shotgun_api3 as sg
+
+sgED.startHttpServer = False
 
 class EngineCli(sgED.Engine):
     def __init__(self, configPath):
@@ -65,11 +68,9 @@ def process(id,name,conf):
    engine = EngineCli("shotgunEventDaemon.conf")
 
    # Get The EventLogEntry ID
-   #global sg
    sgConnection = sg.Shotgun(engine.config.getShotgunURL(),
                              engine.config.getEngineScriptName(),
-                             engine.config.getEngineScriptKey(),
-                         http_proxy=engine.config.getEngineProxyServer())
+                             engine.config.getEngineScriptKey())
   
    event = sgConnection.find_one("EventLogEntry", [["id", "is", int(id)]], fields=[
                                   'id', 'event_type', 'attribute_name', 'meta', 'entity', 'user', 'project', 'session_uuid', 'created_at'])
