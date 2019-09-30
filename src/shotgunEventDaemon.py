@@ -77,6 +77,8 @@ Line: %(lineno)d
 
 my_queue = Queue.Queue()
 
+startHttpServer = True
+
 def _setFilePathOnLogger(logger, path):
     # Remove any previous handler.
     _removeHandlersFromLogger(logger, logging.handlers.TimedRotatingFileHandler)
@@ -315,8 +317,10 @@ class Engine(object):
             self.setEmailsOnLogger(self.log, True)
 
         self.log.setLevel(self.config.getLogLevel())
-        self.t = threading.Thread(target=worker)
-        self.t.start()
+        
+        if startHttpServer:
+            self.t = threading.Thread(target=worker)
+            self.t.start()
         super(Engine, self).__init__()
     
     def addSysPath(self):
