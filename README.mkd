@@ -31,7 +31,8 @@ Options:
 Commands:
   info
   listplugin
-  
+  process     option --id eventlogid --name nameplugin
+
  python sgeventlogcli.py info
  shotgun url : https://xxx.shotgunstudio.com/
  plugin path : ['C:\\XXX\\plugins']
