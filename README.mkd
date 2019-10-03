@@ -1,6 +1,6 @@
 Add template reply to the url / 
 
-![ScreenShot](screenshot.jpg)
+![ScreenShot](screenshot5.jpg)
 
 
 Add for the server the url:
