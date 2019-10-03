@@ -1,3 +1,12 @@
+Add template
+
+
+Add for the server the url:
+/json
+
+Result the state of plugins.
+
+[[{"callbacks": [{"matchevents": {"Shotgun_Entity_Change": "sg_status_list"}, "stoponerror": true, "name": "check_entity_schema", "args": {"operator": "+", "field_to_update": "sg_description", "field_a": "id", "field_b": 1, "entity_type": "Project"}}], "name": "calc_field", "isactive": true, "mtime": "Tue Oct 01 21:55:29 2019"}, {"callbacks": [], "name": "calc_summaries", "isactive": false, "mtime": "Sat Jan 12 00:07:12 2019"}]]
 
 add to conf :
 
