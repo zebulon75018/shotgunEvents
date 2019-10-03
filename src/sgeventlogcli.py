@@ -68,6 +68,10 @@ def process(id,name,conf):
    engine = EngineCli("shotgunEventDaemon.conf")
 
    # Get The EventLogEntry ID
+   print(engine.config.getShotgunURL())
+   print(engine.config.getEngineScriptName())
+   print(engine.config.getEngineScriptKey())
+   
    sgConnection = sg.Shotgun(engine.config.getShotgunURL(),
                              engine.config.getEngineScriptName(),
                              engine.config.getEngineScriptKey())

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Shotgun Plugins State</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
+<style>
+  ul {
+  list-style-type: none;
+  }
+  </style>
+  <script>
+    /**
+ * Translates seconds into human readable format of seconds, minutes, hours, days, and years
+ * 
+ * @param  {number} seconds The number of seconds to be processed
+ * @return {string}         The phrase describing the the amount of time
+ */
+function forHumans ( seconds ) {
+    var levels = [
+        [Math.floor(seconds / 31536000), 'years'],
+        [Math.floor((seconds % 31536000) / 86400), 'days'],
+        [Math.floor(((seconds % 31536000) % 86400) / 3600), 'hours'],
+        [Math.floor((((seconds % 31536000) % 86400) % 3600) / 60), 'minutes'],
+        [(((seconds % 31536000) % 86400) % 3600) % 60, 'seconds'],
+    ];
+    var returntext = '';
+
+    for (var i = 0, max = levels.length; i < max; i++) {
+        if ( levels[i][0] === 0 ) continue;
+        returntext += ' ' + levels[i][0] + ' ' + (levels[i][0] === 1 ? levels[i][1].substr(0, levels[i][1].length-1): levels[i][1]);
+    };
+    return returntext.trim();
+}
+    </script>
+</head>
+<body>
+ 
+<div class="container">
+  <h2>Plugins</h2>
+  
+          {% for plugc in listplugin %}
+  <div class="card">
+  {% if plugc.isActive() %} 
+    <div class="card-header bg-primary text-white"><h3>{{plugc.getName()}}</h3></div>
+  {% else %}
+      <div class="card-header bg-danger text-white"><h3>{{plugc.getName()}}</h3></div>
+  {% endif %}
+    <div class="card-body">
+      <ul>
+      <li> Active :<b> {{plugc.isActive()}} </b>
+  <li> Path :<b> {{plugc._path}}</b>
+  <li> M Time: <b> {{plugc.getMTimeHumanReadable()}}</b>
+  <li> Last Event Id : <b> {{plugc._lastEventId}}</b>
+  <li> BackLog : <b> {{plugc._backlog}}</b>
+    <li> Callbacks:
+      
+     {% for call in plugc._callbacks %}
+      <ul> 
+      <li>Match Events:<b> {{ call._matchEvents }}</b>
+      <li>Args : <b> {{ call._args }}</b>
+      <li>StopOnError:<b> {{ call._stopOnError }}</b>
+      </ul> 
+     {% endfor %}
+      </ul>
+    </div>
+    {% if not plugc.isActive() %} 
+    <div class="card-footer">
+      <button type="button" class="btn btn-danger"> Activate !</button>
+    </div>
+    {% endif %}
+  </div>
+         
+        {% endfor %}
+
+
+</div>
+
+</body>
+</html>
