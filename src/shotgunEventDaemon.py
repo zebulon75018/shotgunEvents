@@ -37,8 +37,11 @@ import pprint
 import socket
 import sys
 import time
+import json
 import traceback
 import threading
+from jinja2 import Environment, FileSystemLoader
+
 
 import Queue    
 
@@ -241,19 +244,53 @@ class Config(ConfigParser.ConfigParser):
 class S(BaseHTTPRequestHandler):
     def _set_headers(self):
         self.send_response(200)
-        self.send_header('Content-type', 'text/html')
+        if self.json_Wanted():
+            self.send_header('Content-type', 'application/json')
+        else:
+            self.send_header('Content-type', 'text/html')
         self.end_headers()
+    
+    def json_Wanted(self):
+        return (self.path == "/json")
 
     def do_GET(self):
         global my_queue
         self._set_headers()
+        # Do nothing ... just ask for icon.
+        if self.path == "/favicon.ico":
+            return
+        
+        # Variable shared by thread    
         lstplug = my_queue.get()
+        
+        if self.json_Wanted():
+            result = [] 
+            for p in lstplug:
+                result.append(p.getJson())
+                    
+            print(json.dumps(result))
+            self.wfile.write(json.dumps(result))
+
+        else:
+            env = Environment( loader = FileSystemLoader("templates") )
+            template = env.get_template('simple.html')
+    
+            collect = [] 
+            for p in lstplug:
+                for po in p._plugins:
+                    collect.append(p._plugins[po])
+                    print(p._plugins[po])
+            print(collect)
+            self.wfile.write(template.render(listplugin=collect))
+            
+        """
         self.wfile.write("<html><body><h1>hi! </h1><ol>")
         for plugc in lstplug:
             for plug in plugc:
                 self.wfile.write("<li> %s " % plug.getName())
         self.wfile.write("</ol> </body></html>")
-
+        """
+        
     def do_HEAD(self):
         self._set_headers()
         
@@ -629,7 +666,13 @@ class PluginCollection(object):
         self.path = path
         self._plugins = {}
         self._stateData = {}
-
+       
+    def getJson(self):
+        result = [] 
+        for p in self._plugins:
+            result.append(self._plugins[p].getJson())
+        return result
+         
     def setState(self, state):
         if isinstance(state, int):
             for plugin in self:
@@ -744,6 +787,23 @@ class Plugin(object):
     def getState(self):
         return (self._lastEventId, self._backlog)
 
+    def getMTimeHumanReadable(self):
+        return time.ctime (self._mtime)
+    
+    def getJsonCallbacks(self):
+        result = []
+        for c in self._callbacks:
+            result.append(c.toJson())
+            
+        return result 
+        
+    def getJson(self):
+        return { "name": self.getName(),
+                 "isactive": self.isActive(),
+                 "mtime":self.getMTimeHumanReadable(),
+                 "callbacks": self.getJsonCallbacks()
+                }
+            
     def getNextUnprocessedEventId(self):
         return self._lastEventId
         if self._lastEventId:
@@ -989,6 +1049,13 @@ class Callback(object):
         self._logger = logging.getLogger(plugin.logger.name + '.' + self._name)
         self._logger.config = self._engine.config
 
+    def toJson(self):
+        return {"name":self._name, 
+                "matchevents":self._matchEvents, 
+                "args":self._args,
+                "stoponerror":self._stopOnError
+                }
+                
     def canProcess(self, event):
         if not self._matchEvents:
             return True
